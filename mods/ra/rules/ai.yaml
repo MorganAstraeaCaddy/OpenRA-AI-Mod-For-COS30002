@@ -11,6 +11,12 @@ Player:
 	ModularBot@NavalAI:
 		Name: Naval AI
 		Type: naval
+	ModularBot@CustomAI1:
+		Name: Custom AI 1
+		Type: custom-1
+	ModularBot@CustomAI2:
+		Name: Custom AI 2
+		Type: custom-2
 	GrantConditionOnBotOwner@rush:
 		Condition: enable-rush-ai
 		Bots: rush
@@ -23,8 +29,14 @@ Player:
 	GrantConditionOnBotOwner@naval:
 		Condition: enable-naval-ai
 		Bots: naval
+	GrantConditionOnBotOwner@custom1:
+		Condition: enable-custom-ai-1
+		Bots: custom-1
+	GrantConditionOnBotOwner@custom2:
+		Condition: enable-custom-ai-2
+		Bots: custom-2
 	SupportPowerBotModule:
-		RequiresCondition: enable-rush-ai || enable-normal-ai || enable-turtle-ai || enable-naval-ai
+		RequiresCondition: enable-rush-ai || enable-normal-ai || enable-turtle-ai || enable-naval-ai || enable-custom-ai-1 || enable-custom-ai-2
 		Decisions:
 			spyplane:
 				OrderName: SovietSpyPlane
@@ -75,11 +87,11 @@ Player:
 					TargetMetric: Value
 					CheckRadius: 7c0
 	HarvesterBotModule:
-		RequiresCondition: enable-rush-ai || enable-normal-ai || enable-turtle-ai || enable-naval-ai
+		RequiresCondition: enable-rush-ai || enable-normal-ai || enable-turtle-ai || enable-naval-ai || enable-custom-ai-1 || enable-custom-ai-2
 		HarvesterTypes: harv
 		RefineryTypes: proc
 	BaseBuilderBotModule@rush:
-		RequiresCondition: enable-rush-ai
+		RequiresCondition: enable-rush-ai || enable-custom-ai-2
 		MinimumExcessPower: 60
 		MaximumExcessPower: 160
 		ExcessPowerIncrement: 40
@@ -123,7 +135,7 @@ Player:
 		BuildingDelays:
 			dome: 4500
 	BaseBuilderBotModule@normal:
-		RequiresCondition: enable-normal-ai
+		RequiresCondition: enable-normal-ai || enable-custom-ai-1
 		MinimumExcessPower: 60
 		MaximumExcessPower: 200
 		ExcessPowerIncrement: 40
@@ -284,7 +296,7 @@ Player:
 			fix: 20000
 			tsla: 21000
 	BuildingRepairBotModule:
-		RequiresCondition: enable-rush-ai || enable-normal-ai || enable-turtle-ai || enable-naval-ai
+		RequiresCondition: enable-rush-ai || enable-normal-ai || enable-turtle-ai || enable-naval-ai || enable-custom-ai-1 || enable-custom-ai-2
 	SquadManagerBotModule@rush:
 		RequiresCondition: enable-rush-ai
 		SquadSize: 20
@@ -296,12 +308,13 @@ Player:
 		ProtectionTypes: harv, mcv, mslo, gap, spen, syrd, iron, pdox, tsla, agun, dome, pbox, hbox, gun, ftur, sam, atek, weap, fact, proc, silo, hpad, afld, afld.ukraine, powr, apwr, stek, barr, kenn, tent, fix, fpwr, tenf, syrf, spef, weaf, domf, fixf, fapw, atef, pdof, mslf, facf
 		IgnoredEnemyTargetTypes: AirborneActor
 	McvManagerBotModule:
-		RequiresCondition: enable-rush-ai || enable-normal-ai || enable-turtle-ai || enable-naval-ai
+		RequiresCondition: enable-rush-ai || enable-normal-ai || enable-turtle-ai || enable-naval-ai || enable-custom-ai-1 || enable-custom-ai-2
 		McvTypes: mcv
 		ConstructionYardTypes: fact
 		McvFactoryTypes: weap
+		MinimumConstructionYardCount: 1
 	UnitBuilderBotModule@rush:
-		RequiresCondition: enable-rush-ai
+		RequiresCondition: enable-rush-ai || enable-custom-ai-2
 		UnitsToBuild:
 			e1: 65
 			e2: 15
@@ -327,7 +340,7 @@ Player:
 			jeep: 4
 			ftrk: 4
 	SquadManagerBotModule@normal:
-		RequiresCondition: enable-normal-ai
+		RequiresCondition: enable-normal-ai 
 		SquadSize: 40
 		NavalUnitsTypes: ss, msub, dd, ca, lst, pt
 		ExcludeFromSquadsTypes: harv, mcv, dog, badr.bomber, u2
@@ -338,7 +351,7 @@ Player:
 		ProtectionTypes: harv, mcv, mslo, gap, spen, syrd, iron, pdox, tsla, agun, dome, pbox, hbox, gun, ftur, sam, atek, weap, fact, proc, silo, hpad, afld, afld.ukraine, powr, apwr, stek, barr, kenn, tent, fix, fpwr, tenf, syrf, spef, weaf, domf, fixf, fapw, atef, pdof, mslf, facf
 		IgnoredEnemyTargetTypes: AirborneActor
 	UnitBuilderBotModule@normal:
-		RequiresCondition: enable-normal-ai
+		RequiresCondition: enable-normal-ai || enable-custom-ai-1
 		UnitsToBuild:
 			e1: 65
 			e2: 15
@@ -463,3 +476,26 @@ Player:
 			jeep: 1
 		UnitDelays:
 			harv: 10000
+	SquadManagerBotModule@customrush:
+		RequiresCondition: enable-custom-ai-2
+		SquadSize: 20
+		NavalUnitsTypes: ss, msub, dd, ca, lst, pt
+		ExcludeFromSquadsTypes: harv, mcv, dog, badr.bomber, u2
+		ConstructionYardTypes: fact
+		AirUnitsTypes: mig, yak, heli, hind, mh60
+		AircraftTargetType: AirborneActor
+		ProtectionTypes: harv, mcv, mslo, gap, spen, syrd, iron, pdox, tsla, agun, dome, pbox, hbox, gun, ftur, sam, atek, weap, fact, proc, silo, hpad, afld, afld.ukraine, powr, apwr, stek, barr, kenn, tent, fix, fpwr, tenf, syrf, spef, weaf, domf, fixf, fapw, atef, pdof, mslf, facf
+		IgnoredEnemyTargetTypes: AirborneActor
+		UseCustomLogic: true
+	SquadManagerBotModule@customnormal:
+		RequiresCondition: enable-custom-ai-1
+		SquadSize: 40
+		NavalUnitsTypes: ss, msub, dd, ca, lst, pt
+		ExcludeFromSquadsTypes: harv, mcv, dog, badr.bomber, u2
+		ConstructionYardTypes: fact
+		NavalProductionTypes: spen, syrd
+		AirUnitsTypes: mig, yak, heli, hind, mh60
+		AircraftTargetType: AirborneActor
+		ProtectionTypes: harv, mcv, mslo, gap, spen, syrd, iron, pdox, tsla, agun, dome, pbox, hbox, gun, ftur, sam, atek, weap, fact, proc, silo, hpad, afld, afld.ukraine, powr, apwr, stek, barr, kenn, tent, fix, fpwr, tenf, syrf, spef, weaf, domf, fixf, fapw, atef, pdof, mslf, facf
+		IgnoredEnemyTargetTypes: AirborneActor
+		UseCustomLogic: true
