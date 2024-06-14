@@ -15,6 +15,7 @@ using System.Linq;
 using OpenRA.Mods.Common.Traits.BotModules.Squads;
 using OpenRA.Primitives;
 using OpenRA.Traits;
+using OpenRA.Mods.Common.Warheads;
 
 namespace OpenRA.Mods.Common.Traits
 {
@@ -91,6 +92,10 @@ namespace OpenRA.Mods.Common.Traits
 
 		[Desc("Enemy target types to never target.")]
 		public readonly BitSet<TargetableType> IgnoredEnemyTargetTypes = default;
+
+		[Desc("Implement custom, modified logic")]
+		public readonly bool UseCustomLogic = false;
+		//My own code only runs if this is true
 
 		public override void RulesetLoaded(Ruleset rules, ActorInfo ai)
 		{
@@ -298,6 +303,70 @@ namespace OpenRA.Mods.Common.Traits
 			return WorldUtils.ClosestToIgnoringPath(FindEnemies(actors, sourceActor), x => x.Actor, sourceActor);
 		}
 
+		internal (Actor Actor, WVec Offset) FindBestFight(Actor sourceActor, List<(Actor Actor, WVec Offset)> enemies){
+			var sumOfOwnDamage = 0;
+			var arms = sourceActor.TraitsImplementing<Armament>();
+			double highestEffectiveness = 0;
+			(Actor Actor, WVec Offset) prefEnemy = (null, WVec.Zero);
+			bool allHelpless = true;
+			var armour = sourceActor.TraitsImplementing<Armor>();
+			Dictionary<string, int> vsArmour = new();
+			foreach (var arm in arms)
+			{
+				// Taken from AttackOrFleeFuzzy, added effectiveness calculations (taking effectiveness from best attacks against each kind of armour)
+				var burst = arm.Weapon.Burst;
+				var totalReloadDelay = arm.Weapon.ReloadDelay + (arm.Weapon.BurstDelays[0] * (burst - 1)).Clamp(1, 200);
+				var damageWarheads = arm.Weapon.Warheads.OfType<DamageWarhead>();
+				foreach (var warhead in damageWarheads){
+					sumOfOwnDamage += warhead.Damage * burst / totalReloadDelay * 100;
+					foreach(KeyValuePair<string, int> vs in warhead.Versus){
+						if (vsArmour.ContainsKey(vs.Key)){
+							if (vs.Value > vsArmour[vs.Key])
+								vsArmour[vs.Key] = vs.Value;
+						}
+						else{
+							vsArmour.Add(vs.Key, vs.Value);
+						}
+					}
+				}
+			}
+			foreach(var e in enemies){
+				var sumOfEnemyDamage = 0;
+				var eArms = e.Actor.TraitsImplementing<Armament>();
+				foreach (var arm in eArms)
+				{
+					allHelpless = false;
+					// Taken from AttackOrFleeFuzzy, added effectiveness calculations
+					var burst = arm.Weapon.Burst;
+					var totalReloadDelay = arm.Weapon.ReloadDelay + (arm.Weapon.BurstDelays[0] * (burst - 1)).Clamp(1, 200);
+					var damageWarheads = arm.Weapon.Warheads.OfType<DamageWarhead>();
+					foreach (var warhead in damageWarheads){
+						int eGunEffectiveness = 100;
+						if (warhead.Versus.ContainsKey(armour.First().Info.Type))
+							eGunEffectiveness = warhead.Versus[armour.First().Info.Type];
+						sumOfEnemyDamage += warhead.Damage * burst / totalReloadDelay * 100 * (eGunEffectiveness / 100);
+					}
+				}
+				if(sumOfEnemyDamage == 0 && !allHelpless){
+					break;
+				}
+				var ourValue = sourceActor.Info.TraitInfoOrDefault<ValuedInfo>();
+				var theirValue = e.Actor.Info.TraitInfoOrDefault<ValuedInfo>();
+				double costEffectiveness = (theirValue != null ? theirValue.Cost : 1) / (ourValue != null ? ourValue.Cost : 1);
+				int gunEffectiveness = 100;
+				if (vsArmour.ContainsKey(e.Actor.TraitsImplementing<Armor>().First().Info.Type)){
+					gunEffectiveness = vsArmour[e.Actor.TraitsImplementing<Armor>().First().Info.Type];
+				}
+				double ttkRatio = (Math.Max(e.Actor.Trait<IHealth>().HP, 0.01)/Math.Max(sumOfOwnDamage * (gunEffectiveness/100), 0.01))
+					/(Math.Max(sourceActor.Trait<IHealth>().HP, 0.01)/Math.Max(sumOfEnemyDamage, 0.01));
+				if (costEffectiveness*ttkRatio > highestEffectiveness){
+					highestEffectiveness = costEffectiveness*ttkRatio;
+					prefEnemy = e;
+				}
+			}
+			return prefEnemy;
+		}
+
 		void CleanSquads()
 		{
 			foreach (var s in Squads)
@@ -404,11 +473,26 @@ namespace OpenRA.Mods.Common.Traits
 			var randomizedSquadSize = Info.SquadSize + World.LocalRandom.Next(Info.SquadSizeRandomBonus);
 
 			if (unitsHangingAroundTheBase.Count >= randomizedSquadSize)
-			{
-				var attackForce = RegisterNewSquad(bot, SquadType.Assault);
+			{	
+				if (Info.UseCustomLogic){
+					Dictionary<string, Squad> attackSquads = new();
+					foreach(var u in unitsHangingAroundTheBase){
+						if (attackSquads.ContainsKey(u.Info.Name)){
+							attackSquads[u.Info.Name].Units.UnionWith(new[] { u });
+						}
+						else{
+							var attack = RegisterNewSquad(bot, SquadType.Assault);
+							attack.Units.UnionWith(new[] { u });
+							attackSquads.Add(u.Info.Name, attack);
+						}
+					}
 
-				attackForce.Units.UnionWith(unitsHangingAroundTheBase);
+				}
+				else{
+					var attackForce = RegisterNewSquad(bot, SquadType.Assault);
 
+					attackForce.Units.UnionWith(unitsHangingAroundTheBase);
+				}
 				unitsHangingAroundTheBase.Clear();
 				foreach (var n in notifyIdleBaseUnits)
 					n.UpdatedIdleBaseUnits(unitsHangingAroundTheBase);
@@ -451,13 +535,28 @@ namespace OpenRA.Mods.Common.Traits
 
 				if (AttackOrFleeFuzzy.Rush.CanAttack(ownUnits, enemies.ConvertAll(x => x.Actor)))
 				{
-					var target = enemies.Count > 0 ? enemies.Random(World.LocalRandom) : enemyBaseBuilder;
-					var rush = GetSquadOfType(SquadType.Rush);
-					rush ??= RegisterNewSquad(bot, SquadType.Rush, target);
+					if (Info.UseCustomLogic){
+						Dictionary<string, Squad> rushSquads = new();
+						foreach(var o in ownUnits){
+							if (rushSquads.ContainsKey(o.Info.Name)){
+								rushSquads[o.Info.Name].Units.UnionWith(new[] { o });
+							}
+							else{
+								var target = FindBestFight(o, enemies);
+								var rush = RegisterNewSquad(bot, SquadType.Rush, target);
+								rush.Units.UnionWith(new[] { o });
+								rushSquads.Add(o.Info.Name, rush);
+							}
+						}
+					}
+					else{
+						var target = enemies.Count > 0 ? enemies.Random(World.LocalRandom) : enemyBaseBuilder;
+						var rush = GetSquadOfType(SquadType.Rush);
+						rush ??= RegisterNewSquad(bot, SquadType.Rush, target);
+						rush.Units.UnionWith(ownUnits);
+						return;
 
-					rush.Units.UnionWith(ownUnits);
-
-					return;
+					}
 				}
 			}
 		}

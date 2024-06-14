@@ -62,6 +62,15 @@ namespace OpenRA.Mods.Common.Traits.BotModules.Squads
 		protected (Actor Actor, WVec Offset) NewLeaderAndFindClosestEnemy(Squad owner)
 		{
 			leader = null; // Force a new leader to be elected, useful if we are targeting a new enemy.
+			//Morgan Code starts here
+			if (owner.SquadManager.Info.UseCustomLogic){
+				leader = Leader(owner);
+				return owner.SquadManager.FindBestFight(
+					leader, owner.SquadManager.FindEnemies(
+						owner.World.FindActorsInCircle(
+							leader.CenterPosition, WDist.FromCells(owner.SquadManager.Info.RushAttackScanRadius)), leader).ToList());				
+			}
+			//Morgan Code ends here
 			return owner.SquadManager.FindClosestEnemy(Leader(owner));
 		}
 
